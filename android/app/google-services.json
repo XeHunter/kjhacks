@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "515106728954",
+    "project_id": "kjhacks-b1a39",
+    "storage_bucket": "kjhacks-b1a39.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:515106728954:android:7a7fcce3d7f01445445243",
+        "android_client_info": {
+          "package_name": "com.example.kj"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDya_RwZ7zk_kiydwqT3Wm4XAT9ZkMZURo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
