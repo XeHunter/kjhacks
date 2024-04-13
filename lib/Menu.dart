@@ -26,7 +26,7 @@ class _MenuState extends State<Menu> {
 
   Future<void> _fetchUserData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    String name = prefs.getString('userName') ?? '';
+    String name = prefs.getString('username') ?? '';
 
     setState(() {
       Name = name;

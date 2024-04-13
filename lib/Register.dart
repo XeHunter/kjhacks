@@ -3,6 +3,7 @@ import 'package:email_validator/email_validator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 // import 'package:kavach_app/login.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kj/DrawerMain.dart';
@@ -25,43 +26,78 @@ class _RegisterState extends State<Register> {
   bool _isLoading1 = false;
   bool _obscurePassword = true;
 
-  TextEditingController nameController = TextEditingController();
-  TextEditingController emailController = TextEditingController();
-  TextEditingController numberController = TextEditingController();
-  TextEditingController passwordController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController firstnameController = TextEditingController();
+  final TextEditingController lastnameController = TextEditingController();
+  final TextEditingController standardController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
-  String? _nameError;
+  String? _usernameError;
   String? _emailError;
-  String? _numberError;
+  String? _standardError;
   String? _passwordError;
 
   bool _isFormValid = false;
 
-  String? _name;
+  String? _username;
   String? _email;
-  String? _number;
+  String? _standard;
   String? _password;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   void _validateForm() {
     setState(() {
-      _nameError = _validateName(nameController.text.trim());
+      _usernameError = _validateUsername(usernameController.text.trim());
       _emailError = _validateEmail(emailController.text.trim());
-      _numberError = _validateNumber(numberController.text.trim());
+      _standardError = _validateStandard(standardController.text.trim());
       _passwordError = _validatePassword(passwordController.text.trim());
 
-      _isFormValid =
-          _nameError == null && _emailError == null && _numberError == null && _passwordError == null;
+      _isFormValid = _usernameError == null && _emailError == null && _standardError == null && _passwordError == null;
 
       if (_isFormValid) {
-        _name = nameController.text.trim();
+        _username = usernameController.text.trim();
         _email = emailController.text.trim();
-        _number = numberController.text.trim();
+        _standard = standardController.text.trim();
         _password = passwordController.text.trim();
       }
     });
+  }
+
+  String? _validateUsername(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your username';
+    }
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your email';
+    }
+    // Add more complex email validation if needed
+    return null;
+  }
+
+  String? _validateStandard(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your standard';
+    }
+    int? standard = int.tryParse(value);
+    if (standard == null || standard < 1 || standard > 12) {
+      return 'Standard must be between 1 and 12';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your password';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+    return null;
   }
 
   void _navigateToHome(BuildContext context) {
@@ -82,49 +118,42 @@ class _RegisterState extends State<Register> {
     });
 
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: _email!,
-        password: _password!,
+      final response = await http.post(
+        Uri.parse('https://1534-115-112-43-148.ngrok-free.app/signup'),
+        headers: {
+          "ngrok-skip-browser-warning": "69420", // Add the custom header here
+        },
+        body: {
+          'username': _username!,
+          'email': _email!,
+          'first_name': firstnameController.text.trim(),
+          'last_name': lastnameController.text.trim(),
+          'standard': _standard!,
+          "user_type": "student",
+          'password': _password!,
+        },
       );
 
-      final user = userCredential.user;
-
-      if (user != null) {
-
+      if (response.statusCode == 200) {
+        // If the server returns a 200 OK response, navigate to the home screen.
         SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('username', _username!);
+        await prefs.setString('email', _email!);
+        await prefs.setString('first_name', firstnameController.text.trim());
+        await prefs.setString('last_name', lastnameController.text.trim());
+        await prefs.setString('standard', _standard!);
         await prefs.setBool('isLoggedIn', true);
-
-        await prefs.setString('userName', _name!);
-        await prefs.setString('userEmail', _email!);
-        await prefs.setString('userPhone', _number!);
-
-        final userDoc = _firestore.collection('users').doc(user.uid);
-        await userDoc.set({
-          'name': _name,
-          'email': _email,
-          'phoneNumber': _number,
-        });
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => DrawerMain()),
         );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Email already registered. Please login.')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Login()),
-        );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'An error occurred')),
-        );
+        // If the server returns an error response, throw an exception.
+        throw Exception('Failed to register user');
       }
     } catch (e) {
+      // Handle any errors here.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('An error occurred')),
       );
@@ -133,122 +162,6 @@ class _RegisterState extends State<Register> {
         _isLoading = false;
       });
     }
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    setState(() {
-      _isLoading1 = true;
-    });
-
-    try {
-      final googleUser = await GoogleSignIn().signIn();
-
-      if (googleUser != null) {
-        final googleAuth = await googleUser.authentication;
-
-        final credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
-
-        final userCredential = await _auth.signInWithCredential(credential);
-        final user = userCredential.user;
-
-        if (user != null) {
-          final userEmail = user.email;
-
-          // Check if the user email exists in the Firestore database
-          final userDoc = _firestore.collection('users').where('email', isEqualTo: userEmail).get();
-          if ((await userDoc).docs.isNotEmpty) {
-            // Email exists, navigate to Login screen
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => Login()),
-            );
-          } else {
-            // Email does not exist, save user data and navigate to Home screen
-            final newUserDoc = _firestore.collection('users').doc(user.uid);
-
-            SharedPreferences prefs = await SharedPreferences.getInstance();
-            await prefs.setBool('isLoggedIn', true);
-
-            await prefs.setString('userName', user.displayName!);
-            await prefs.setString('userEmail', user.email!);
-            await prefs.setString('userPhone', user.phoneNumber!);
-
-            await newUserDoc.set({
-              'name': user.displayName,
-              'email': user.email,
-              'phoneNumber': '',
-            });
-
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => DrawerMain()),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred')),
-      );
-    } finally {
-      setState(() {
-        _isLoading1 = false;
-      });
-    }
-  }
-
-  String? _validateName(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Please enter your name';
-    }
-    return null;
-  }
-
-  String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Please enter your email';
-    }
-    if (!EmailValidator.validate(value)) {
-      return 'Invalid email format';
-    }
-    return null;
-  }
-
-
-
-  String? _validateNumber(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Please enter your mobile number';
-    }
-
-    if (value.contains(' ')) {
-      return 'Please clear blank space';
-    }
-
-    if (value.length != 10) {
-      return 'Mobile number must be 10 digits';
-    }
-
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Please enter your password';
-    }
-    if (value.length < 6) {
-      return 'Password must be at least 6 characters';
-    }
-    return null;
-  }
-
-  @override
-  void initState(){
-    super.initState();
-
   }
 
   @override
@@ -308,11 +221,11 @@ class _RegisterState extends State<Register> {
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 50),
                                 child: TextField(
-                                  controller: nameController,
+                                  controller: usernameController,
                                   cursorColor: Colors.black54,
                                   decoration: InputDecoration(
                                       focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: _nameError != null ? Colors.red : Color(0xff009b97), width: 2.0),
+                                        borderSide: BorderSide(color: _usernameError != null ? Colors.red : Color(0xff009b97), width: 2.0),
                                       ),
                                       enabledBorder: OutlineInputBorder(
                                         borderSide: BorderSide(color: Colors.black54, width: 2.0),
@@ -329,25 +242,25 @@ class _RegisterState extends State<Register> {
                                           width: 2.0,
                                         ),
                                       ),
-                                      labelText: 'Enter your name',
+                                      labelText: 'Enter your Username',
                                       labelStyle: TextStyle(
-                                          color: _nameError != null ? Colors.red : Colors.black54,
+                                          color: _usernameError != null ? Colors.red : Colors.black54,
                                           fontFamily: "Belanosima"
                                       ),
                                       floatingLabelStyle: TextStyle(
-                                          color: _nameError != null ? Colors.red : Color(0xff009b97),
+                                          color: _usernameError != null ? Colors.red : Color(0xff009b97),
                                           fontFamily: "Belanosima"
                                       ),
-                                      errorText: _nameError,
+                                      errorText: _usernameError,
                                       suffixIcon: Icon(Icons.person),
                                       suffixIconColor: MaterialStateColor.resolveWith((states) =>
-                                      states.contains(MaterialState.focused) ? (_nameError != null ? Colors.red : Color(0xff009b97))
+                                      states.contains(MaterialState.focused) ? (_usernameError != null ? Colors.red : Color(0xff009b97))
                                           : Colors.black54,
                                       )
                                   ),
                                   onChanged: (value) {
                                     setState(() {
-                                      _nameError = _validateName(value);
+                                      _usernameError = _validateUsername(value);
                                     });
                                   },
                                 ),
@@ -404,14 +317,11 @@ class _RegisterState extends State<Register> {
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 50),
                                 child: TextField(
-                                  controller: numberController,
-                                  keyboardType: TextInputType.number,
-                                  maxLength: 10,
+                                  controller: firstnameController,
                                   cursorColor: Colors.black54,
                                   decoration: InputDecoration(
-                                      counterText: "",
                                       focusedBorder: OutlineInputBorder(
-                                        borderSide: BorderSide(color: _numberError != null ? Colors.red : Color(0xff009b97), width: 2.0),
+                                        borderSide: BorderSide(color: _usernameError != null ? Colors.red : Color(0xff009b97), width: 2.0),
                                       ),
                                       enabledBorder: OutlineInputBorder(
                                         borderSide: BorderSide(color: Colors.black54, width: 2.0),
@@ -428,30 +338,129 @@ class _RegisterState extends State<Register> {
                                           width: 2.0,
                                         ),
                                       ),
-                                      labelText: 'Mobile Number',
+                                      labelText: 'Enter your Firstname',
                                       labelStyle: TextStyle(
-                                          color: _numberError != null ? Colors.red : Colors.black54,
+                                          color: _usernameError != null ? Colors.red : Colors.black54,
                                           fontFamily: "Belanosima"
                                       ),
                                       floatingLabelStyle: TextStyle(
-                                          color: _numberError != null ? Colors.red : Color(0xff009b97),
+                                          color: _usernameError != null ? Colors.red : Color(0xff009b97),
                                           fontFamily: "Belanosima"
                                       ),
-                                      errorText: _numberError,
-                                      suffixIcon: Icon(Icons.phone),
+                                      errorText: _usernameError,
+                                      suffixIcon: Icon(Icons.person),
                                       suffixIconColor: MaterialStateColor.resolveWith((states) =>
-                                      states.contains(MaterialState.focused) ? (_numberError != null ? Colors.red : Color(0xff009b97))
+                                      states.contains(MaterialState.focused) ? (_usernameError != null ? Colors.red : Color(0xff009b97))
                                           : Colors.black54,
                                       )
                                   ),
                                   onChanged: (value) {
                                     setState(() {
-                                      _numberError = _validateNumber(value);
+                                      _usernameError = _validateUsername(value);
                                     });
                                   },
                                 ),
                               ),
                               SizedBox(height: 10,),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 50),
+                                child: TextField(
+                                  controller: lastnameController,
+                                  cursorColor: Colors.black54,
+                                  decoration: InputDecoration(
+                                      focusedBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(color: _usernameError != null ? Colors.red : Color(0xff009b97), width: 2.0),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(color: Colors.black54, width: 2.0),
+                                      ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                          color: Colors.red,
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                          color: Colors.red,
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      labelText: 'Enter your Lastname',
+                                      labelStyle: TextStyle(
+                                          color: _usernameError != null ? Colors.red : Colors.black54,
+                                          fontFamily: "Belanosima"
+                                      ),
+                                      floatingLabelStyle: TextStyle(
+                                          color: _usernameError != null ? Colors.red : Color(0xff009b97),
+                                          fontFamily: "Belanosima"
+                                      ),
+                                      errorText: _usernameError,
+                                      suffixIcon: Icon(Icons.person),
+                                      suffixIconColor: MaterialStateColor.resolveWith((states) =>
+                                      states.contains(MaterialState.focused) ? (_usernameError != null ? Colors.red : Color(0xff009b97))
+                                          : Colors.black54,
+                                      )
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _usernameError = _validateUsername(value);
+                                    });
+                                  },
+                                ),
+                              ),
+                              SizedBox(height: 10,),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 50),
+                                child: TextField(
+                                  controller: standardController,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 2,
+                                  cursorColor: Colors.black54,
+                                  decoration: InputDecoration(
+                                      counterText: "",
+                                      focusedBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(color: _standardError != null ? Colors.red : Color(0xff009b97), width: 2.0),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(color: Colors.black54, width: 2.0),
+                                      ),
+                                      errorBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                          color: Colors.red,
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      focusedErrorBorder: OutlineInputBorder(
+                                        borderSide: BorderSide(
+                                          color: Colors.red,
+                                          width: 2.0,
+                                        ),
+                                      ),
+                                      labelText: 'Standard',
+                                      labelStyle: TextStyle(
+                                          color: _standardError != null ? Colors.red : Colors.black54,
+                                          fontFamily: "Belanosima"
+                                      ),
+                                      floatingLabelStyle: TextStyle(
+                                          color: _standardError != null ? Colors.red : Color(0xff009b97),
+                                          fontFamily: "Belanosima"
+                                      ),
+                                      errorText: _standardError,
+                                      suffixIcon: Icon(Icons.phone),
+                                      suffixIconColor: MaterialStateColor.resolveWith((states) =>
+                                      states.contains(MaterialState.focused) ? (_standardError != null ? Colors.red : Color(0xff009b97))
+                                          : Colors.black54,
+                                      )
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _standardError = _validateStandard(value);
+                                    });
+                                  },
+                                ),
+                              ),
+                              SizedBox(height: 20,),
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 50),
                                 child: TextField(
@@ -538,92 +547,30 @@ class _RegisterState extends State<Register> {
                                   ),
                                 ),
                               ),
+                              SizedBox(height: 30,),
                               Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child:
-                                  Center(
-                                      child: Text(
-                                          "-OR-",
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontFamily: "Belanosima",
-                                          )
-                                      )
-                                  )
-                              ),
-                              Center(
-                                  child: Text(
-                                      "Register With",
-                                      style: TextStyle(
-                                        color: Colors.black,
-                                        fontFamily: "Belanosima",
-                                      )
-                                  )
-                              ),
-                              Padding(
-                                padding: EdgeInsets.fromLTRB(0, 5, 0, 10),
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed: _handleGoogleSignIn,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xff009b97),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(15),
-                                          ),
+                                padding: const EdgeInsets.only(bottom: 18.0),
+                                child: Center(
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: defaultStyle,
+                                      children: [
+                                        TextSpan(
+                                          text: "Already have an account?",
                                         ),
-                                        child: _isLoading1
-                                            ? SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                            :Row(
-                                          mainAxisSize: MainAxisSize.min,
-
-                                          children: [
-                                            Image.asset("assets/google.png", width: 24, height: 24), // Your Google icon
-                                            SizedBox(width: 10),
-                                            Text(
-                                              "Register with Google",
-                                              style: TextStyle(
-                                                fontFamily: "Belanosima",
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ],
+                                        TextSpan(
+                                          style: linkStyle,
+                                          text: " Login here",
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(builder: (context) => Login()),
+                                              );
+                                            },
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Center(
-                                child: RichText(
-                                  text: TextSpan(
-                                    style: defaultStyle,
-                                    children: [
-                                      TextSpan(
-                                        text: "Already have an account?",
-                                      ),
-                                      TextSpan(
-                                        style: linkStyle,
-                                        text: " Login here",
-                                        recognizer: TapGestureRecognizer()
-                                          ..onTap = () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(builder: (context) => Login()),
-                                            );
-                                          },
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               )

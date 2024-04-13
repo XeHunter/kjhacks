@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kj/DrawerMain.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,8 +36,8 @@ class _LoginState extends State<Login> {
   String? _email;
   String? _password;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // final FirebaseAuth _auth = FirebaseAuth.instance;
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   void _validateForm() {
     setState(() {
@@ -69,120 +72,78 @@ class _LoginState extends State<Login> {
       _isLoading = true;
     });
 
-    try {
-      // Check if the email exists in Firestore
-      QuerySnapshot emailSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: _email!)
-          .get();
-
-      if (emailSnapshot.docs.isNotEmpty) {
-        // Email exists in the database, sign in the user
-        final userCredential = await _auth.signInWithEmailAndPassword(
-          email: _email!,
-          password: _password!,
-        );
-
-        if (userCredential.user != null) {
-
-          SharedPreferences prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isLoggedIn', true);
-
-          // Move to DrawerMain and store user information in shared preferences
-          DocumentSnapshot userSnapshot = emailSnapshot.docs.first;
-          await prefs.setString('userName', userSnapshot['name']);
-          await prefs.setString('userEmail', userSnapshot['email']);
-          await prefs.setString('userPhone', userSnapshot['phoneNumber']);
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => DrawerMain()),
-          );
-        }
-      } else {
-        // Email not found in the database, show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('User not found. Please register.')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Register()),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('User not found. Please register.')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Register()),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'An error occurred')),
-        );
-      }
-    } catch (e) {
-      print("$e error!!!"); // Print the error message to understand what went wrong
+    if (_email == null || _password == null) {
+      // Handle the case where email or password is null
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred')),
+        SnackBar(content: Text('Email or password is missing.')),
       );
-    }finally {
-      setState(() {
-        _isLoading = false;
-      });
+      return;
     }
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-    setState(() {
-      _isLoading1 = true;
-    });
 
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      final response = await http.post(
+        Uri.parse('https://1534-115-112-43-148.ngrok-free.app/login'),
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, String>{
+          'email': _email!,
+          'password': _password!,
+        }),
+      );
 
-      if (googleUser != null) {
-        // Check if the email exists in Firestore
-        QuerySnapshot emailSnapshot = await FirebaseFirestore.instance
-            .collection('users')
-            .where('email', isEqualTo: googleUser.email)
-            .get();
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> userData = jsonDecode(response.body);
+        final String? token = userData['token']; // Assuming the token is returned in the response
 
-        if (emailSnapshot.docs.isNotEmpty) {
-          // Email exists in the database
-          DocumentSnapshot userSnapshot = emailSnapshot.docs.first;
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('token', token ?? ''); // Store the token, use an empty string if token is null
 
-          SharedPreferences prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isLoggedIn', true);
-          await prefs.setString('userName', userSnapshot['name']);
-          await prefs.setString('userEmail', userSnapshot['email']);
-          await prefs.setString('userPhone', userSnapshot['phone']);
+        // Fetch user data using the token
+        final userResponse = await http.get(
+          Uri.parse('https://1534-115-112-43-148.ngrok-free.app/user'),
+          headers: <String, String>{
+            'Authorization': 'Token $token',
+          },
+        );
+
+        if (userResponse.statusCode == 200) {
+          final Map<String, dynamic> userDetails = jsonDecode(userResponse.body);
+
+          // Ensure all values are strings before storing them in shared preferences
+          await prefs.setString('username', userDetails['username'].toString());
+          await prefs.setString('email', userDetails['email'].toString());
+          await prefs.setString('first_name', userDetails['first_name'].toString());
+          await prefs.setString('last_name', userDetails['last_name'].toString());
+          await prefs.setString('standard', userDetails['standard'].toString());
 
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => DrawerMain()),
           );
         } else {
-          // Email not found in the database, show error message
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('User not found. Please register.')),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => Register()),
+            SnackBar(content: Text('Failed to fetch user data.')),
           );
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed. Please try again.')),
+        );
       }
     } catch (e) {
-      // Your existing error handling...
+      print("$e error!!!");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred')),
+      );
     } finally {
       setState(() {
-        _isLoading1 = false;
+        _isLoading = false;
       });
     }
   }
+
 
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) {
@@ -390,7 +351,7 @@ class _LoginState extends State<Login> {
                               ),
                               SizedBox(height: 20,),
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 50),
+                                padding: EdgeInsets.symmetric(horizontal: 50,vertical: 30),
                                 child: ElevatedButton(
                                   onPressed: () => _navigateToHome(context),
                                   style: ElevatedButton.styleFrom(
@@ -418,63 +379,7 @@ class _LoginState extends State<Login> {
                                   ),
                                 ),
                               ),
-                              Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 20),
-                                  child:
-                                  Center(
-                                      child: Text(
-                                          "-OR-",
-                                          style: TextStyle(
-                                            color: Colors.black,
-                                            fontFamily: "Belanosima",
-                                          )
-                                      )
-                                  )
-                              ),
-                              Padding(
-                                padding: EdgeInsets.fromLTRB(0, 5, 0, 10),
-                                child: Align(
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed:_handleGoogleSignIn,
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xff009b97),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(15),
-                                          ),
-                                        ),
-                                        child: _isLoading1
-                                            ? SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                            :Row(
-                                          mainAxisSize: MainAxisSize.min,
-
-                                          children: [
-                                            Image.asset("assets/google.png", width: 24, height: 24), // Your Google icon
-                                            SizedBox(width: 10),
-                                            Text(
-                                              "Login with Google",
-                                              style: TextStyle(
-                                                fontFamily: "Belanosima",
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
+                              SizedBox(height: 100,),
                               Center(
                                 child: RichText(
                                   text: TextSpan(
