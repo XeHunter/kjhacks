@@ -115,21 +115,24 @@ class _Screen1State extends State<Screen1> {
             Padding(
               padding:
               const EdgeInsets.only(left: 20, right: 1, top: 5, bottom: 2),
-              child: Row(
-                children: [
-                  Text(
-                    'Our top plans',
-                    style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
-                  ),
-                  SizedBox(
-                    width: 170,
-                  ),
-                  Text('see all',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                      )),
-                ],
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Text(
+                      'Our top plans',
+                      style: TextStyle(fontSize: 23, fontWeight: FontWeight.w700),
+                    ),
+                    SizedBox(
+                      width: 170,
+                    ),
+                    Text('see all',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                        )),
+                  ],
+                ),
               ),
             ),
             PromoCard(),

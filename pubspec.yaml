@@ -54,6 +54,7 @@ dependencies:
   url_launcher: ^6.2.6
   http: ^1.2.1
   youtube_explode_dart: ^2.2.0
+  provider: ^6.1.2
 
 
 dev_dependencies:
@@ -112,6 +113,9 @@ flutter:
     - family: Acme
       fonts:
         - asset: fonts/Acme-Regular.ttf
+    - family: Dys
+      fonts:
+        - asset: fonts/OpenDyslexicMono 400.otf
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages

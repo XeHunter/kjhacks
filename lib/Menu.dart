@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_zoom_drawer/flutter_zoom_drawer.dart';
 import 'package:kj/Login.dart';
 import 'package:kj/services/constants.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'font_preference_provider.dart';
 import 'main.dart';
 
 class Menu extends StatefulWidget {
@@ -22,7 +24,9 @@ class _MenuState extends State<Menu> {
   void initState() {
     super.initState();
     _fetchUserData();
+    Provider.of<FontPreferenceProvider>(context, listen: false).loadFontPreference();
   }
+
 
   Future<void> _fetchUserData() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -143,6 +147,21 @@ class _MenuState extends State<Menu> {
 
               },
             ),
+            SwitchListTile(
+              activeColor: Colors.grey,
+              activeTrackColor: Colors.white,
+              title: Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: Text('Use Dyslexia-Friendly Font',style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold,
+                  fontFamily: Provider.of<FontPreferenceProvider>(context).isDyslexiaFont ? 'Dys' : 'Belanosima',
+                ),),
+              ),
+              value: Provider.of<FontPreferenceProvider>(context).isDyslexiaFont,
+              onChanged: (bool value) {
+                Provider.of<FontPreferenceProvider>(context, listen: false).saveFontPreference(value);
+              },
+            ),
+
             SizedBox(height: 100,),
             Padding(
               padding: const EdgeInsets.only(left: 18.0),

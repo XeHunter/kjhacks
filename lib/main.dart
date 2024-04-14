@@ -6,18 +6,37 @@ import 'package:kj/DrawerMain.dart';
 import 'package:kj/Login.dart';
 import 'package:kj/Register.dart';
 import 'package:lottie/lottie.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
+import 'font_preference_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: Splash(),
-  ));
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => FontPreferenceProvider(),
+      child: Builder(
+        builder: (context) {
+          // Access the provider here
+          final fontPreferenceProvider = Provider.of<FontPreferenceProvider>(context, listen: false);
+          // Load the font preference
+          fontPreferenceProvider.loadFontPreference();
+          // Return the MaterialApp with the theme based on the provider's state
+          return MaterialApp(
+            theme: ThemeData(
+              fontFamily: fontPreferenceProvider.isDyslexiaFont ? 'Dys' : 'Belanosima',
+            ),
+            debugShowCheckedModeBanner: false,
+            home: Splash(),
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class Splash extends StatefulWidget {
